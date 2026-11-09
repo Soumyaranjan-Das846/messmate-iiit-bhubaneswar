@@ -150,6 +150,36 @@ router.get('/complaints', async (req, res) => {
     }
 });
 
+// GET /api/v1/student/admins
+// Return only the contact details of admins in the student's mess.
+router.get('/admins', async (req, res) => {
+    try {
+        const admins = await UserModel.find({
+            messId: req.auth.messId,
+            role: 'admin'
+        })
+            .select('username email phone')
+            .sort({ username: 1 })
+            .lean();
+
+        return res.json(
+            response.single(
+                true,
+                'Administrator contacts loaded',
+                admins
+            )
+        );
+    } catch (error) {
+        return res.status(500).json(
+            response.error(
+                false,
+                'Failed to load administrator contacts',
+                error.message
+            )
+        );
+    }
+});
+
 // GET /api/v1/student/profile
 router.get('/profile', async (req, res) => {
     try {
