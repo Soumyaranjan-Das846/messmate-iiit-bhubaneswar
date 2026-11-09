@@ -1,176 +1,139 @@
+
 const UserModel = require('../user/user.model');
-
 const CategoryModel = require('../category/category.model');
-
 const BalanceModel = require('./balance.model');
-
 const ExpenseLib = require('../expense/expense.lib');
 
 async function Balancedetails(data) {
-    const balanceDetails = await Promise.all(data.map(async (item) => {
-        const cat = await CategoryModel.findById(item.categoryId);
-        const usr = await UserModel.findById(item.userId);
-        return {
-            category: cat.name,
-            username: usr.username,
-            ...item.toObject(),
-        };
-    }));
+    const balanceDetails = await Promise.all(
+        data.map(async (item) => {
+            const [cat, usr] = await Promise.all([
+                item.categoryId
+                    ? CategoryModel.findById(item.categoryId)
+                    : null,
+                item.userId
+                    ? UserModel.findById(item.userId)
+                    : null,
+            ]);
 
-    const balanceArr = data.map(item => item.amount);
-    const total = balanceArr.reduce((sum, balance) => sum + balance);
+            return {
+                ...item.toObject(),
+                category: cat?.name || 'Uncategorized',
+                username: usr?.username || 'Unknown User',
+            };
+        })
+    );
+
+    const total = data.reduce(
+        (sum, item) => sum + (Number(item.amount) || 0),
+        0
+    );
+
     return { data: balanceDetails, total };
 }
 
 class BalanceLib {
     static async addBalance(balanceObject) {
-        try {
-            const balance = await BalanceModel.create(balanceObject);
-            return { success: true, message: `You are add ${balance.amount} amount on your balance`, data: balance };
-        } catch (e) {
-            throw e;
-        }
+        const balance = await BalanceModel.create(balanceObject);
+
+        return {
+            success: true,
+            message: `You have added ${balance.amount} amount to your balance`,
+            data: balance,
+        };
     }
 
-    static async userTotalBalance(currentMonthFirstDate, currentMonthLastDate, id) {
-        try {
-            const data = await BalanceModel.find({
-                userId: id,
-                date: { $gte: currentMonthFirstDate, $lte: currentMonthLastDate },
-            });
+    static async userTotalBalance(firstDate, lastDate, id) {
+        const data = await BalanceModel.find({
+            userId: id,
+            date: { $gte: firstDate, $lte: lastDate },
+        });
 
-            if (data.length) {
-                // const balanceDetails = await Promise.all(data.map(async (item) => {
-                //   const cat = await CategoryModel.findById(item.categoryId);
-                //   const usr = await UserModel.findById(item.userId);
-                //   return {
-                //     category: cat.name,
-                //     username: usr.messusername,
-                //     ...item.toObject(),
-                //   };
-                // }));
-                //
-                // const balanceArr = data.map(item => item.amount);
-                // const total = balanceArr.reduce((sum, balance) => sum + balance);
-                // return { data: balanceDetails, total };
-                return await Balancedetails(data);
-            } return { data: null, total: 0 };
-        } catch (e) {
-            throw e;
-        }
+        return Balancedetails(data);
     }
 
-    static async userMealBalance(currentMonthFirstDate, currentMonthLastDate, id, messId) {
-        try {
-            const category = await CategoryModel.findOne({
-                $and: [{ isMeal: 1 }, { messId }],
-            });
-            const data = await BalanceModel.find({
-                userId: id,
-                categoryId: category._id,
-                date: { $gte: currentMonthFirstDate, $lte: currentMonthLastDate },
-            });
+    static async userMealBalance(firstDate, lastDate, id, messId) {
+        const category = await CategoryModel.findOne({
+            isMeal: 1,
+            messId,
+        });
 
-            if (data.length) {
-                // const balanceDetails = await Promise.all(data.map(async (item) => {
-                //   const cat = await CategoryModel.findById(item.categoryId);
-                //   const usr = await UserModel.findById(item.userId);
-                //   return {
-                //     category: cat.name,
-                //     username: usr.username,
-                //     ...item.toObject(),
-                //   };
-                // }));
-                //
-                // const balanceArr = data.map(item => item.amount);
-                // const total = balanceArr.reduce((sum, balance) => sum + balance);
-                // return { data: balanceDetails, total };
-                return await Balancedetails(data);
-            } return { data: null, total: 0 };
-        } catch (e) {
-            throw e;
+        if (!category) {
+            return { data: [], total: 0 };
         }
+
+        const data = await BalanceModel.find({
+            userId: id,
+            messId,
+            categoryId: category._id,
+            date: { $gte: firstDate, $lte: lastDate },
+        });
+
+        return Balancedetails(data);
     }
 
-    static async totalMessBalance(currentMonthFirstDate, currentMonthLastDate, messId) {
-        try {
-            const data = await BalanceModel.find({
-                messId,
-                date: {
-                    $gte: currentMonthFirstDate,
-                    $lte: currentMonthLastDate,
-                },
-            });
-            if (data.length) {
-                return await Balancedetails(data);
-            }
-            return { data: null, total: 0 };
-        } catch (e) {
-            throw e;
-        }
+    static async totalMessBalance(firstDate, lastDate, messId) {
+        const data = await BalanceModel.find({
+            messId,
+            date: { $gte: firstDate, $lte: lastDate },
+        });
+
+        return Balancedetails(data);
     }
 
-    static async totalMealBalance(currentMonthFirstDate, currentMonthLastDate, messId) {
-        try {
-            const category = await CategoryModel.findOne({
-                $and: [{ isMeal: 1 }, { messId }],
-            });
-            const data = await BalanceModel.find({
-                categoryId: category._id,
-                messId,
-                date: { $gte: currentMonthFirstDate, $lte: currentMonthLastDate },
-            });
-            if (data.length) {
-                return await Balancedetails(data);
-            }
-            return { data: null, total: 0 };
-        } catch (e) {
-            throw e;
+    static async totalMealBalance(firstDate, lastDate, messId) {
+        const category = await CategoryModel.findOne({
+            isMeal: 1,
+            messId,
+        });
+
+        if (!category) {
+            return { data: [], total: 0 };
         }
+
+        const data = await BalanceModel.find({
+            categoryId: category._id,
+            messId,
+            date: { $gte: firstDate, $lte: lastDate },
+        });
+
+        return Balancedetails(data);
     }
 
-    static async categoryWiseBalance(currentMonthFirstDate, currentMonthLastDate, categoryId) {
-        try {
-            const data = await BalanceModel.find({
-                categoryId,
-                date: { $gte: currentMonthFirstDate, $lte: currentMonthLastDate },
-            });
-            if (data.length) {
-                return await Balancedetails(data);
-            }
-            return { data: null, total: 0 };
-        } catch (e) {
-            throw e;
-        }
+    static async categoryWiseBalance(firstDate, lastDate, categoryId) {
+        const data = await BalanceModel.find({
+            categoryId,
+            date: { $gte: firstDate, $lte: lastDate },
+        });
+
+        return Balancedetails(data);
     }
 
-    static async currentAvailableBalance(currentMonthFirstDate, currentMonthLastDate, messId) {
-        try {
-            return await Promise.all(
-                [
-                    this.totalMessBalance(currentMonthFirstDate, currentMonthLastDate, messId),
-                    ExpenseLib.totalMessExpense(currentMonthFirstDate, currentMonthLastDate, messId),
-                ],
-            ).then(result => result[0].total - result[1].total);
-        } catch (e) {
-            throw e;
-        }
+    static async currentAvailableBalance(firstDate, lastDate, messId) {
+        const [balance, expense] = await Promise.all([
+            this.totalMessBalance(firstDate, lastDate, messId),
+            ExpenseLib.totalMessExpense(firstDate, lastDate, messId),
+        ]);
+
+        return (
+            (Number(balance.total) || 0) -
+            (Number(expense.total) || 0)
+        );
     }
 
     static async updateBalance(balanceId, updateObj) {
-        try {
-            return await BalanceModel.findByIdAndUpdate({ _id: balanceId }, updateObj, { new: true });
-        } catch (e) {
-            throw e;
-        }
+        return BalanceModel.findByIdAndUpdate(
+            balanceId,
+            updateObj,
+            {
+                new: true,
+                runValidators: true,
+            }
+        );
     }
 
     static async deleteBalance(balanceId) {
-        try {
-            return await BalanceModel.findByIdAndRemove(balanceId);
-        } catch (e) {
-            throw e;
-        }
+        return BalanceModel.findByIdAndDelete(balanceId);
     }
 }
 
