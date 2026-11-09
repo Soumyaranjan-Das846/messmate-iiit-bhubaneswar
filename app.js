@@ -10,6 +10,8 @@ const cors = require('cors');
 const server = require('http').createServer(app);
 const port = process.env.PORT || 3000;
 
+const connectDatabase = require('./config/database');
+
 const AppModule = require('./app/modules/index');
 const indexRoute = require('./routes/index');
 
@@ -37,9 +39,6 @@ const { MessRoute } = MessModule;
 const { AuthController, AuthRoute } = AuthModule;
 
 const authController = new AuthController();
-
-// Connect MongoDB
-require('./config/database')();
 
 // CORS configuration
 const corsOptions = {
@@ -81,9 +80,19 @@ app.use('/api/v1/feedback', FeedbackRoute);
 // Student Portal
 app.use('/api/v1/student', StudentRoute);
 
-// Start server
-server.listen(port, () => {
-    console.log(
-        `Server is running on ${process.env.HOST}:${port}`
-    );
-});
+// Start server only after MongoDB connects
+async function startServer() {
+    try {
+        await connectDatabase();
+
+        server.listen(port, '0.0.0.0', () => {
+            console.log(`Server is running on port ${port}`);
+            console.log('MongoDB connection ready');
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error.message);
+        process.exit(1);
+    }
+}
+
+startServer();
