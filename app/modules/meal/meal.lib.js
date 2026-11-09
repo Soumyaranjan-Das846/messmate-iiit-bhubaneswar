@@ -1,161 +1,174 @@
+
 const MealModel = require('./meal.model');
 const UserModel = require('../user/user.model');
 const ExpenseLib = require('../expense/expense.lib');
 
+async function getMealDetails(data) {
+    const mealDetails = await Promise.all(
+        data.map(async (item) => {
+            const usr = item.userId
+                ? await UserModel.findById(item.userId)
+                : null;
+
+            return {
+                ...item.toObject(),
+                username: usr?.username || 'Unknown Student',
+            };
+        })
+    );
+
+    const meals = data.reduce(
+        (sum, item) => sum + (Number(item.numberOfMeal) || 0),
+        0
+    );
+
+    return {
+        data: mealDetails,
+        meals,
+    };
+}
+
 class MealLib {
     static async addMeal(mealObject) {
-        try {
-            return await MealModel.create(mealObject);
-        } catch (e) {
-            throw e;
-        }
+        return MealModel.create(mealObject);
     }
 
     static async updateMeal(mealId, updateObj) {
-        try {
-            return await MealModel.findByIdAndUpdate({ _id: mealId }, updateObj, { new: true });
-        } catch (e) {
-            throw e;
-        }
+        return MealModel.findByIdAndUpdate(
+            mealId,
+            updateObj,
+            {
+                new: true,
+                runValidators: true,
+            }
+        );
     }
 
     static async deleteMeal(mealId) {
-        try {
-            return await MealModel.findByIdAndRemove(mealId);
-        } catch (e) {
-            throw e;
-        }
+        return MealModel.findByIdAndDelete(mealId);
     }
 
-    static async totalMealInMonth(currentMonthFirstDate, currentMonthLastDate, messId) {
-        try {
-            const data = await MealModel.find(
-                {
-                    messId,
-                    date: { $gte: currentMonthFirstDate, $lte: currentMonthLastDate },
-                },
-            );
+    static async totalMealInMonth(
+        currentMonthFirstDate,
+        currentMonthLastDate,
+        messId
+    ) {
+        const data = await MealModel.find({
+            messId,
+            date: {
+                $gte: currentMonthFirstDate,
+                $lte: currentMonthLastDate,
+            },
+        });
 
-            if (data.length) {
-                const mealDetails = await Promise.all(data.map(async (item) => {
-                    const usr = await UserModel.findById(item.userId);
-                    return {
-                        username: usr.username,
-                        ...item.toObject(),
-                    };
-                }));
-
-                const MealArr = data.map(item => item.numberOfMeal);
-                const meals = MealArr.reduce((sum, meal) => sum + meal);
-                return { data: mealDetails, meals };
-            } return { data: null, meals: 0 };
-        } catch (e) {
-            throw e;
-        }
+        return getMealDetails(data);
     }
 
+    static async totalMeal(
+        currentMonth,
+        currentMonthLastDate,
+        messId
+    ) {
+        const data = await MealModel.find({
+            messId,
+            date: {
+                $gte: currentMonth,
+                $lte: currentMonthLastDate,
+            },
+        });
 
-    static async totalMeal(currentMonth, currentMonthLastDate, messId) {
-        try {
-            const data = await MealModel.find(
-                {
-                    messId,
-                    date: { $gte: currentMonth, $lte: currentMonthLastDate },
-                },
-            );
-
-            if (data.length) {
-                const mealDetails = await Promise.all(data.map(async (item) => {
-                    const usr = await UserModel.findById(item.userId);
-                    return {
-                        username: usr.username,
-                        ...item.toObject(),
-                    };
-                }));
-                const MealArr = data.map(item => item.numberOfMeal);
-                const result = MealArr.reduce((sum, meal) => sum + meal);
-                return { data: mealDetails, meals: result };
-            }
-            return { data: null, meals: 0 };
-        } catch (e) {
-            throw e;
-        }
+        return getMealDetails(data);
     }
 
+    static async currentMeal(
+        currentMonth,
+        currentMonthLastDate,
+        messId
+    ) {
+        const data = await MealModel.find({
+            messId,
+            date: {
+                $gte: currentMonth,
+                $lte: currentMonthLastDate,
+            },
+        });
 
-    static async currentMeal(currentMonth, currentMonthLastDate, messId) {
-        try {
-            const data = await MealModel.find(
-                {
-                    messId,
-                    date: { $gte: currentMonth, $lte: currentMonthLastDate },
-                },
-            );
-            if (data.length) {
-                const mealDetails = await Promise.all(data.map(async (item) => {
-                    const usr = await UserModel.findById(item.userId);
-                    return {
-                        username: usr.username,
-                        ...item.toObject(),
-                    };
-                }));
-
-                const MealArr = data.map(item => item.numberOfMeal);
-                const result = MealArr.reduce((sum, meal) => sum + meal);
-                return { data: mealDetails, meals: result };
-            }
-            return { data: null, meals: 0 };
-        } catch (e) {
-            throw e;
-        }
+        return getMealDetails(data);
     }
 
-    static async userWiseMeal(currentMonthFirstDate, currentMonthLastDate, userId) {
-        try {
-            const data = await MealModel.find({
-                userId,
-                date: { $gte: currentMonthFirstDate, $lte: currentMonthLastDate },
-            });
+    static async userWiseMeal(
+        currentMonthFirstDate,
+        currentMonthLastDate,
+        userId
+    ) {
+        const data = await MealModel.find({
+            userId,
+            date: {
+                $gte: currentMonthFirstDate,
+                $lte: currentMonthLastDate,
+            },
+        });
 
-            if (data.length) {
-                const MealArr = data.map(item => item.numberOfMeal);
-                const result = MealArr.reduce((sum, meal) => sum + meal);
-                return { data, meals: result };
-            }
-            return { data: null, meals: 0 };
-        } catch (e) {
-            throw e;
-        }
+        const meals = data.reduce(
+            (sum, item) => sum + (Number(item.numberOfMeal) || 0),
+            0
+        );
+
+        return {
+            data,
+            meals,
+        };
     }
 
+    static async mealRateInMonth(
+        currentMonthFirstDate,
+        currentMonthLastDate,
+        messId
+    ) {
+        const [expense, meal] = await Promise.all([
+            ExpenseLib.totalMealExpense(
+                currentMonthFirstDate,
+                currentMonthLastDate,
+                messId
+            ),
+            MealLib.totalMealInMonth(
+                currentMonthFirstDate,
+                currentMonthLastDate,
+                messId
+            ),
+        ]);
 
-    static async mealRateInMonth(currentMonthFirstDate, currentMonthLastDate, messId) {
-        try {
-            return await Promise.all(
-                [
-                    ExpenseLib.totalMealExpense(currentMonthFirstDate, currentMonthLastDate, messId),
-                    MealLib.totalMealInMonth(currentMonthFirstDate, currentMonthLastDate, messId),
-                ],
-            ).then(result => result[0].total / result[1].meals);
-        } catch (e) {
-            throw e;
+        const totalMeals = Number(meal.meals) || 0;
+
+        if (totalMeals === 0) {
+            return 0;
         }
-    }
 
+        return (Number(expense.total) || 0) / totalMeals;
+    }
 
     static async mealRate(messId) {
-        try {
-            return await Promise.all(
-                [
-                    ExpenseLib.totalMessExpense(messId),
-                    MealLib.totalMeal(messId),
-                ],
-            ).then(result => result[0] / result[1]);
-        } catch (e) {
-            throw e;
+        const [expense, meal] = await Promise.all([
+            ExpenseLib.totalMessExpense(messId),
+            MealLib.totalMeal(messId),
+        ]);
+
+        const totalExpense =
+            typeof expense === 'number'
+                ? expense
+                : Number(expense?.total) || 0;
+
+        const totalMeals =
+            typeof meal === 'number'
+                ? meal
+                : Number(meal?.meals) || 0;
+
+        if (totalMeals === 0) {
+            return 0;
         }
+
+        return totalExpense / totalMeals;
     }
 }
-
 
 module.exports = MealLib;
